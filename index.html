@@ -65,7 +65,7 @@ async function callAI(prompt, maxTokens=4000, retries=3) {
       if (d.error) throw new Error(d.error.message||"Gemini API error");
       text = d.candidates?.[0]?.content?.parts?.filter(p=>!p.thought).map(p=>p.text||"").join("")||"";
       if (!text.trim()) {
-        if (attempt<retries){await new Promise(r=>setTimeout(r,4000*attempt));continue;}
+        if (attempt<retries){await new Promise(r=>setTimeout(r,8000*attempt));continue;}
         throw new Error("AI returned empty response — please try again");
       }
       return text;
