@@ -200,6 +200,7 @@ RULES:
 Respond ONLY with this JSON, no markdown:
 {"title":"Learning Roadmap: ${subject}","summary":"One brutally honest sentence","totalTime":"realistic range","complexity":"simple|moderate|complex","phases":[{"name":"","goal":"","weeks":"","difficulty":"Beginner|Intermediate|Advanced","topics":[],"prerequisite":null}],"finalTip":""}`;
   const raw=await callAI(prompt,2500);
+  console.log("RAW SKELETON:", raw);
   const parsed=parseJSON(raw,()=>null);
   if(!parsed||!Array.isArray(parsed.phases)||parsed.phases.length===0) throw new Error("Roadmap structure came back empty — please try again.");
   parsed.phases=parsed.phases.map((p,i)=>({
