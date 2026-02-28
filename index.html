@@ -20,8 +20,7 @@
 const { useState, useEffect, useRef } = React;
 
 const AI_PROVIDER = "gemini";
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_KEY = "AIzaSyBx0YfadUkjkD10Wwt1LkePj-dVbv0C5uI";
+const WORKER_URL = "https://roadmapcourse.faheemk0077.workers.dev";
 const YOUTUBE_API_KEY = "AIzaSyCAij1xhjybOjBr3LlqiHcgga0Dfsl5i4A";
 
 const DIFFICULTY_COLORS = { Beginner:"#1DD1A1", Intermediate:"#FF9F43", Advanced:"#FF6B6B" };
@@ -57,7 +56,7 @@ async function callAI(prompt, maxTokens=4000, retries=3) {
     try {
       let text="";
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`,
+        WORKER_URL,
         { method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({ contents:[{parts:[{text:prompt}]}],
             generationConfig:{temperature:0.3,maxOutputTokens:maxTokens} }) }
