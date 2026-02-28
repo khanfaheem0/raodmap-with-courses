@@ -60,8 +60,7 @@ async function callAI(prompt, maxTokens=4000, retries=3) {
         `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`,
         { method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({ contents:[{parts:[{text:prompt}]}],
-            generationConfig:{temperature:0.3,maxOutputTokens:maxTokens},
-            thinkingConfig:{thinkingBudget:8000} }) }
+            generationConfig:{temperature:0.3,maxOutputTokens:maxTokens} }) }
       );
       const d = await res.json();
       if (d.error) throw new Error(d.error.message||"Gemini API error");
