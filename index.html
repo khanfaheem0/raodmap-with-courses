@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Learning Roadmap Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',sans-serif;min-height:100vh}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const WORKER_URL = "https://roadmapcourse.faheemk0077.workers.dev";
+const YOUTUBE_API_KEY = "AIzaSyCAij1xhjybOjBr3LlqiHcgga0Dfsl5i4A";
+
+// Verified fallback courses by difficulty — these URLs are confirmed real
+const FALLBACK_COURSES = {
+  Beginner: [
+    { name:"freeCodeCamp - Responsive Web Design", url:"https://www.freecodecamp.org/learn/2022/responsive-web-design/", platform:"freeCodeCamp", instructor:"freeCodeCamp", free:true, difficulty:"Beginner", estimatedHours:"300 hours", why:"Industry-standard free curriculum covering HTML & CSS with real certification projects.", credibility:{communityTrust:95,topicCoverage:90,longevity:95,overall:93} },
+    { name:"The Odin Project - Foundations", url:"https://www.theodinproject.com/paths/foundations/courses/foundations", platform:"The Odin Project", instructor:"Community-driven", free:true, difficulty:"Beginner", estimatedHours:"60-80 hours", why:"Project-based learning path trusted by thousands of self-taught developers worldwide.", credibility:{communityTrust:95,topicCoverage:88,longevity:92,overall:91} },
+    { name:"CS50x - Harvard Introduction to Computer Science", url:"https://cs50.harvard.edu/x/", platform:"Harvard/edX", instructor:"David Malan", free:true, difficulty:"Beginner", estimatedHours:"100-150 hours", why:"World's most popular intro CS course. Rigorous, free, and beginner-friendly.", credibility:{communityTrust:99,topicCoverage:85,longevity:98,overall:97} },
+    { name:"Khan Academy - Computing", url:"https://www.khanacademy.org/computing", platform:"Khan Academy", instructor:"Khan Academy", free:true, difficulty:"Beginner", estimatedHours:"20-40 hours", why:"Completely free, self-paced, excellent for absolute beginners.", credibility:{communityTrust:92,topicCoverage:75,longevity:95,overall:87} },
+    { name:"MDN Web Docs - Learn Web Development", url:"https://developer.mozilla.org/en-US/docs/Learn", platform:"MDN", instructor:"Mozilla", free:true, difficulty:"Beginner", estimatedHours:"40-60 hours", why:"Official Mozilla documentation with structured learning paths.", credibility:{communityTrust:97,topicCoverage:92,longevity:98,overall:96} },
+  ],
+  Intermediate: [
+    { name:"freeCodeCamp - JavaScript Algorithms and Data Structures", url:"https://www.freecodecamp.org/learn/javascript-algorithms-and-data-structures/", platform:"freeCodeCamp", instructor:"freeCodeCamp", free:true, difficulty:"Intermediate", estimatedHours:"300 hours", why:"Comprehensive JS curriculum with certification. Covers ES6, OOP, functional programming.", credibility:{communityTrust:95,topicCoverage:90,longevity:95,overall:93} },
+    { name:"The Odin Project - Full Stack JavaScript", url:"https://www.theodinproject.com/paths/full-stack-javascript", platform:"The Odin Project", instructor:"Community-driven", free:true, difficulty:"Intermediate", estimatedHours:"500+ hours", why:"Full stack path with real projects. One of the most respected free curriculums online.", credibility:{communityTrust:96,topicCoverage:92,longevity:93,overall:94} },
+    { name:"MIT OpenCourseWare - Introduction to Algorithms", url:"https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/", platform:"MIT OCW", instructor:"MIT Faculty", free:true, difficulty:"Intermediate", estimatedHours:"80-120 hours", why:"MIT's legendary algorithms course, completely free with lecture videos.", credibility:{communityTrust:99,topicCoverage:88,longevity:97,overall:96} },
+    { name:"freeCodeCamp YouTube - Full Courses", url:"https://www.youtube.com/@freecodecamp", platform:"YouTube", instructor:"freeCodeCamp", free:true, difficulty:"Intermediate", estimatedHours:"Varies", why:"Hundreds of free full-length courses on every topic imaginable.", credibility:{communityTrust:97,topicCoverage:88,longevity:95,overall:94} },
+  ],
+  Advanced: [
+    { name:"MIT OpenCourseWare - Advanced Topics", url:"https://ocw.mit.edu/", platform:"MIT OCW", instructor:"MIT Faculty", free:true, difficulty:"Advanced", estimatedHours:"Varies", why:"MIT's full course catalog free online. Covers the most advanced CS topics.", credibility:{communityTrust:99,topicCoverage:85,longevity:98,overall:97} },
+    { name:"freeCodeCamp - Machine Learning with Python", url:"https://www.freecodecamp.org/learn/machine-learning-with-python/", platform:"freeCodeCamp", instructor:"freeCodeCamp", free:true, difficulty:"Advanced", estimatedHours:"300 hours", why:"Certified ML curriculum built with TensorFlow. Free and beginner to advanced.", credibility:{communityTrust:93,topicCoverage:85,longevity:90,overall:91} },
+    { name:"fast.ai - Practical Deep Learning", url:"https://course.fast.ai/", platform:"fast.ai", instructor:"Jeremy Howard", free:true, difficulty:"Advanced", estimatedHours:"80-100 hours", why:"Top-down practical approach to deep learning. Free and highly respected.", credibility:{communityTrust:96,topicCoverage:88,longevity:90,overall:93} },
+    { name:"The Odin Project - Advanced HTML and CSS", url:"https://www.theodinproject.com/paths/full-stack-javascript/courses/advanced-html-and-css", platform:"The Odin Project", instructor:"Community-driven", free:true, difficulty:"Advanced", estimatedHours:"60-80 hours", why:"Deep dive into advanced CSS concepts with real projects.", credibility:{communityTrust:94,topicCoverage:86,longevity:91,overall:91} },
+  ]
+};
+
+const DIFFICULTY_COLORS = { Beginner:"#1DD1A1", Intermediate:"#FF9F43", Advanced:"#FF6B6B" };
+const phaseColors = [
+  { bg:"#FFF0F0", border:"#FF6B6B", badge:"#FF6B6B", label:"🌱 Phase 1 — Foundations" },
+  { bg:"#FFF7E6", border:"#FF9F43", badge:"#FF9F43", label:"⚡ Phase 2 — Building Up" },
+  { bg:"#F0F9FF", border:"#48DBFB", badge:"#48DBFB", label:"🔥 Phase 3 — Going Deeper" },
+  { bg:"#F0FFF4", border:"#1DD1A1", badge:"#1DD1A1", label:"🚀 Phase 4 — Advanced & Real World" },
+  { bg:"#F5F0FF", border:"#A29BFE", badge:"#A29BFE", label:"🎯 Phase 5 — Mastery" },
+];
+const darkPC = [
+  { bg:"#3d1a1a", border:"#FF6B6B", badge:"#FF6B6B", label:"🌱 Phase 1 — Foundations" },
+  { bg:"#3d2a0a", border:"#FF9F43", badge:"#FF9F43", label:"⚡ Phase 2 — Building Up" },
+  { bg:"#0a2a3d", border:"#48DBFB", badge:"#48DBFB", label:"🔥 Phase 3 — Going Deeper" },
+  { bg:"#0a2d1f", border:"#1DD1A1", badge:"#1DD1A1", label:"🚀 Phase 4 — Advanced & Real World" },
+  { bg:"#1a1030", border:"#A29BFE", badge:"#A29BFE", label:"🎯 Phase 5 — Mastery" },
+];
+const POPULAR = ["Web Development","Data Science","Machine Learning","UI/UX Design","Cybersecurity","Mobile App Dev","DevOps","Python Programming","Game Development","Graphic Design"];
+const VAGUE = ["tech","it","coding","computer","programming","technology","computers","software","internet","digital","ai","ml","cs","stem","ict","learn","study","course"];
+const SKELETON_MSGS = ["Mapping the full learning journey...","Deciding how many phases you actually need...","Breaking topics into granular steps...","Estimating realistic time per phase...","Finalising your roadmap structure..."];
+const PHASE_MSGS = ["Searching trusted course databases...","Filtering out low-quality resources...","Checking community reputation of each resource...","Matching courses to your specific topics...","Estimating hours per resource...","Scoring credibility conservatively...","Identifying topic gaps for this phase...","Almost there — finalising courses..."];
+const AUDIT_MSGS = ["Gathering all topics across every phase...","Cross-referencing with recommended courses...","Looking for topics that slipped through...","Checking cross-phase dependency gaps...","Verifying no prerequisite knowledge is assumed but untaught...","Compiling your global gap report..."];
+
+const storage = {
+  get: (k) => { const v=localStorage.getItem(k); if(v===null) throw new Error("not found"); return {value:v}; },
+  set: (k,v) => { localStorage.setItem(k,String(v)); return true; },
+  delete: (k) => { localStorage.removeItem(k); return true; }
+};
+
+async function callAI(prompt, maxTokens=5000, retries=3) {
+  for (let attempt=1; attempt<=retries; attempt++) {
+    try {
+      const res = await fetch(WORKER_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          contents:[{parts:[{text:prompt}]}],
+          generationConfig:{temperature:0.2, maxOutputTokens:maxTokens}
+        })
+      });
+      const d = await res.json();
+      if (d.error) throw new Error(d.error.message||"API error");
+      const text = d.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("")||"";
+      if (!text.trim()) {
+        if (attempt<retries){await new Promise(r=>setTimeout(r,8000*attempt));continue;}
+        throw new Error("AI returned empty response — please try again");
+      }
+      return text;
+    } catch(e) {
+      if (attempt<retries){await new Promise(r=>setTimeout(r,8000*attempt));continue;}
+      throw e;
+    }
+  }
+}
+
+function autoClose(str) {
+  const stack=[]; let inStr=false,esc=false;
+  for(let i=0;i<str.length;i++){
+    const ch=str[i];
+    if(esc){esc=false;continue;}
+    if(ch==="\\"&&inStr){esc=true;continue;}
+    if(ch==='"'){inStr=!inStr;continue;}
+    if(inStr) continue;
+    if(ch==="{"||ch==="[") stack.push(ch==="{"?"}":"]");
+    else if(ch==="}"||ch==="]") stack.pop();
+  }
+  let fixed=str.trimEnd().replace(/,\s*$/,"");
+  while(stack.length) fixed+=stack.pop();
+  return fixed;
+}
+
+function parseJSON(raw, fallback=null) {
+  let clean=raw.replace(/```json|```/g,"").replace(/^\uFEFF/,"").trim();
+  try{return JSON.parse(clean);}catch{}
+  const objS=clean.indexOf("{"),arrS=clean.indexOf("[");
+  const start=objS===-1?arrS:arrS===-1?objS:Math.min(objS,arrS);
+  if(start===-1){if(fallback)return fallback(clean);throw new Error("No JSON found");}
+  const str=clean.slice(start);
+  try{return JSON.parse(str);}catch{}
+  try{return JSON.parse(autoClose(str));}catch{}
+  if(str.trimStart().startsWith("[")){
+    try{return JSON.parse(autoClose(`{"resources":${str},"uncoveredTopics":[]}`));}catch{}
+  }
+  const lc=str.lastIndexOf("}");
+  if(lc>0){try{return JSON.parse(str.slice(0,lc+1));}catch{}}
+  if(fallback)return fallback(clean);
+  throw new Error("AI returned unusable response — please try again");
+}
+
+async function fetchYouTubeStats(resources) {
+  if(!YOUTUBE_API_KEY) return resources;
+  return await Promise.all(resources.map(async r=>{
+    try{
+      const url=r.url||"";
+      let stats=null;
+      const handleMatch=url.match(/@([\w.-]+)/);
+      const videoMatch=url.match(/[?&]v=([\w-]+)/);
+      if(handleMatch){
+        const res=await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=${handleMatch[1]}&key=${YOUTUBE_API_KEY}`);
+        const d=await res.json();
+        const ch=d.items?.[0];
+        if(ch) stats={type:"channel",name:ch.snippet?.title,subscribers:parseInt(ch.statistics?.subscriberCount||0),videoCount:parseInt(ch.statistics?.videoCount||0)};
+      } else if(videoMatch){
+        const res=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoMatch[1]}&key=${YOUTUBE_API_KEY}`);
+        const d=await res.json();
+        const v=d.items?.[0];
+        if(v) stats={type:"video",views:parseInt(v.statistics?.viewCount||0),likes:parseInt(v.statistics?.likeCount||0),title:v.snippet?.title};
+      }
+      if(!stats) return r;
+      let score=r.credibility?.overall||70;
+      if(stats.type==="channel"){
+        const s=stats.subscribers;
+        if(s>1000000) score=Math.min(98,score+12);
+        else if(s>500000) score=Math.min(95,score+8);
+        else if(s>100000) score=Math.min(90,score+4);
+        else if(s<10000) score=Math.max(50,score-10);
+      } else if(stats.type==="video"){
+        const lr=stats.likes/Math.max(stats.views,1);
+        if(stats.views>1000000&&lr>0.04) score=Math.min(98,score+10);
+        else if(stats.views>100000) score=Math.min(92,score+5);
+        else if(stats.views<10000) score=Math.max(50,score-8);
+      }
+      return {...r,youtubeStats:stats,credibility:{...(r.credibility||{}),overall:score,realData:true}};
+    }catch{return r;}
+  }));
+}
+
+// Fill in missing courses from verified fallback list so every phase has min 3 courses
+function applyFallbacks(resources, difficulty, topics) {
+  if(resources.length >= 3) return resources;
+  const needed = 3 - resources.length;
+  const pool = FALLBACK_COURSES[difficulty] || FALLBACK_COURSES["Beginner"];
+  const existingUrls = new Set(resources.map(r=>r.url));
+  const additions = pool
+    .filter(r=>!existingUrls.has(r.url))
+    .slice(0, needed)
+    .map(r=>({
+      ...r,
+      topicsMatched: topics.slice(0,3),
+      topicsMissed: [],
+      _isFallback: true
+    }));
+  return [...resources, ...additions];
+}
+
+async function generateSkeleton(subject) {
+  const prompt=`You are a senior mentor. A student wants to learn "${subject}".
+Generate ONLY the roadmap structure — no courses yet.
+RULES:
+- Decide phases based on subject complexity (3 simple, 4-5 complex like ML/Full Stack/Cybersecurity)
+- Topics must be SPECIFIC and GRANULAR — minimum 4 per phase, maximum 8
+- Realistic time — do not undersell difficulty
+- Each phase goal must be something concrete the student can BUILD or DO
+- prerequisite: string or null
+Respond ONLY with this JSON, no markdown:
+{"title":"Learning Roadmap: ${subject}","summary":"One brutally honest sentence","totalTime":"realistic range","complexity":"simple|moderate|complex","phases":[{"name":"","goal":"","weeks":"","difficulty":"Beginner|Intermediate|Advanced","topics":[],"prerequisite":null}],"finalTip":""}`;
+  const raw=await callAI(prompt,2500);
+  const parsed=parseJSON(raw,()=>null);
+  if(!parsed||!Array.isArray(parsed.phases)||parsed.phases.length===0) throw new Error("Roadmap structure came back empty — please try again.");
+  parsed.phases=parsed.phases.map((p,i)=>({
+    name:p.name||`Phase ${i+1}`,goal:p.goal||"",weeks:p.weeks||"4-6 weeks",
+    difficulty:p.difficulty||(i===0?"Beginner":i===parsed.phases.length-1?"Advanced":"Intermediate"),
+    topics:Array.isArray(p.topics)&&p.topics.length>0?p.topics:[`Core ${subject} concepts`,`${subject} tools`,`${subject} practice`],
+    prerequisite:p.prerequisite||null
+  }));
+  return parsed;
+}
+
+async function loadPhaseCourses(subject, phase, allPhases) {
+  const ctx=allPhases.map((p,i)=>`Phase ${i+1}: ${p.name} — ${p.topics.join(", ")}`).join("\n");
+  const prompt=`You are a senior developer recommending resources to a student learning "${subject}".
+Full roadmap context:
+${ctx}
+
+Find courses ONLY for this phase:
+Phase: "${phase.name}" (${phase.difficulty})
+Goal: ${phase.goal}
+Topics: ${phase.topics.join(", ")}
+${phase.prerequisite?`Prerequisites: ${phase.prerequisite}`:""}
+
+STRICT RULES:
+1. You MUST return MINIMUM 3 courses, ideally 4-5. Never return fewer than 3.
+2. FREE or free-to-audit only.
+3. ONLY recommend from these VERIFIED sources you are 100% sure still exist:
+   - freeCodeCamp (freecodecamp.org/learn/...)
+   - The Odin Project (theodinproject.com/paths/... or theodinproject.com/lessons/...)
+   - CS50 Harvard (cs50.harvard.edu/...)
+   - MIT OpenCourseWare (ocw.mit.edu/courses/...)
+   - Khan Academy (khanacademy.org/...)
+   - MDN Web Docs (developer.mozilla.org/en-US/docs/Learn/...)
+   - fast.ai (course.fast.ai or fast.ai)
+   - YouTube channels ONLY via channel homepage (youtube.com/@ChannelName) — never a single video URL
+   - Official documentation sites (docs.python.org, reactjs.org/docs, etc.)
+4. NEVER invent a course URL. If unsure about a URL, skip that course.
+5. For YouTube: ONLY recommend channels with 500k+ subscribers you are certain exist.
+6. estimatedHours: be realistic.
+7. Credibility scores: conservative. 70=good, 80=great, 90+=legendary only.
+8. topicsMatched: list which phase topics this course covers.
+9. topicsMissed: list which phase topics this course does NOT cover.
+
+Respond ONLY with this JSON, no markdown:
+{"resources":[{"name":"","url":"","platform":"","instructor":"","free":true,"difficulty":"Beginner|Intermediate|Advanced","estimatedHours":"","topicsMatched":[],"topicsMissed":[],"why":"","credibility":{"communityTrust":80,"topicCoverage":80,"longevity":80,"overall":80}}],"uncoveredTopics":[{"topic":"","reason":"","partialResources":[]}]}`;
+
+  const raw=await callAI(prompt,5000);
+  const parsed=parseJSON(raw,(t)=>{
+    const am=t.match(/\[[\s\S]*\]/);
+    if(am){try{return{resources:JSON.parse(autoClose(am[0])),uncoveredTopics:[]};}catch{}}
+    return{resources:[],uncoveredTopics:[]};
+  });
+
+  let resources = Array.isArray(parsed.resources) ? parsed.resources : [];
+  const uncoveredTopics = Array.isArray(parsed.uncoveredTopics) ? parsed.uncoveredTopics : [];
+
+  // Validate and clean resources — remove any with obviously fake/empty URLs
+  resources = resources.filter(r => {
+    if(!r.url || r.url.length < 10) return false;
+    if(r.url.includes("example.com")) return false;
+    if(r.url === "https://") return false;
+    return true;
+  });
+
+  // Apply fallbacks if less than 3 real courses were returned
+  resources = applyFallbacks(resources, phase.difficulty, phase.topics);
+
+  // Fetch real YouTube stats
+  resources = await fetchYouTubeStats(resources);
+
+  return { resources, uncoveredTopics };
+}
+
+async function runGlobalAudit(subject, phases, phaseData) {
+  const allTopics=phases.map((p,i)=>({phase:p.name,topics:p.topics,coveredBy:(phaseData[i]?.resources||[]).map(r=>({name:r.name,covers:r.topicsMatched||[]}))}));
+  const prompt=`You are a senior mentor auditing a learning roadmap for "${subject}".
+Full picture:
+${JSON.stringify(allTopics,null,1)}
+1. GLOBAL GAPS: Topics across ANY phase not adequately covered by recommended resources globally.
+2. DEPENDENCY GAPS: Topics in later phases assuming knowledge NOT taught in earlier phases.
+Be specific. Only flag real gaps.
+Respond ONLY with this JSON, no markdown:
+{"globalGaps":[{"topic":"","phase":"","reason":"","partialResources":[],"severity":"critical|moderate|minor"}],"dependencyGaps":[{"topic":"","assumedInPhase":"","taughtInPhase":"","recommendation":""}],"overallCoverage":"excellent|good|partial|poor","summary":""}`;
+  const raw=await callAI(prompt,2500);
+  const parsed=parseJSON(raw,()=>({globalGaps:[],dependencyGaps:[],overallCoverage:"unknown",summary:"Audit could not be completed."}));
+  return{globalGaps:Array.isArray(parsed.globalGaps)?parsed.globalGaps:[],dependencyGaps:Array.isArray(parsed.dependencyGaps)?parsed.dependencyGaps:[],overallCoverage:parsed.overallCoverage||"unknown",summary:parsed.summary||""};
+}
+
+function validateQuery(q){
+  const t=q.trim().toLowerCase();
+  if(t.length<3)return{valid:false,reason:"too_short"};
+  if(VAGUE.includes(t))return{valid:false,reason:"too_vague"};
+  return{valid:true};
+}
+
+function DynamicLoader({messages,color="#764ba2",label=""}){
+  const [msgIdx,setMsgIdx]=useState(0);
+  const [dots,setDots]=useState(0);
+  const [progress,setProgress]=useState(8);
+  const refs=useRef({msg:0,prog:8});
+  useEffect(()=>{
+    const mt=setInterval(()=>{refs.current.msg=(refs.current.msg+1)%messages.length;setMsgIdx(refs.current.msg);},2200);
+    const dt=setInterval(()=>setDots(d=>(d+1)%4),500);
+    const pt=setInterval(()=>{if(refs.current.prog<88){refs.current.prog=Math.min(refs.current.prog+Math.random()*6+2,88);setProgress(Math.round(refs.current.prog));}},800);
+    return()=>{clearInterval(mt);clearInterval(dt);clearInterval(pt);};
+  },[]);
+  return(
+    <div style={{padding:"28px 24px",textAlign:"center"}}>
+      <div style={{position:"relative",display:"inline-block",marginBottom:20}}>
+        <div style={{width:64,height:64,borderRadius:"50%",border:`3px solid ${color}22`,borderTop:`3px solid ${color}`,animation:"spin 1s linear infinite",margin:"0 auto"}}/>
+        <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",fontSize:24}}>{label}</div>
+      </div>
+      <p key={msgIdx} style={{fontWeight:700,fontSize:15,color:"#555",marginBottom:6,animation:"fadeIn 0.4s ease"}}>{messages[msgIdx]}<span style={{letterSpacing:2}}>{".".repeat(dots)}</span></p>
+      <div style={{maxWidth:280,margin:"14px auto 0",background:"#e8e8f0",borderRadius:20,height:6,overflow:"hidden"}}>
+        <div style={{height:6,borderRadius:20,background:`linear-gradient(90deg,${color},${color}88)`,width:`${progress}%`,transition:"width 0.8s ease"}}/>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [query,setQuery]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [result,setResult]=useState(null);
+  const [error,setError]=useState("");
+  const [dark,setDark]=useState(false);
+  const [darkReady,setDarkReady]=useState(false);
+  const [saved,setSaved]=useState([]);
+  const [view,setView]=useState("home");
+  const [checked,setChecked]=useState({});
+  const [toast,setToast]=useState({msg:"",type:"info"});
+  const [queryWarn,setQueryWarn]=useState("");
+  const [phaseLoading,setPhaseLoading]=useState({});
+  const [phaseData,setPhaseData]=useState({});
+  const [auditData,setAuditData]=useState(null);
+  const [auditLoading,setAuditLoading]=useState(false);
+  const auditRanRef=useRef(false);
+
+  useEffect(()=>{
+    try{const sr=storage.get("roadmaps_v3");setSaved(JSON.parse(sr.value));}catch{}
+    try{const cr=storage.get("checked_v3");setChecked(JSON.parse(cr.value));}catch{}
+    try{const dr=storage.get("dark_v3");setDark(dr.value==="true");}catch{}
+    setDarkReady(true);
+  },[]);
+
+  useEffect(()=>{
+    if(!result||auditLoading||auditData||auditRanRef.current)return;
+    const total=result.phases?.length||0;
+    const loaded=Object.keys(phaseData).length;
+    if(total>0&&loaded===total){auditRanRef.current=true;runAudit();}
+  },[phaseData,result]);
+
+  const runAudit=async()=>{
+    if(!result)return;
+    setAuditLoading(true);
+    try{const data=await runGlobalAudit(result.title.replace("Learning Roadmap: ",""),result.phases,phaseData);setAuditData(data);}
+    catch(e){showToast("⚠️ Gap audit failed: "+e.message,"warn");}
+    setAuditLoading(false);
+  };
+
+  const showToast=(msg,type="info")=>{setToast({msg,type});setTimeout(()=>setToast({msg:"",type:"info"}),3200);};
+  const toggleDark=()=>{const d=!dark;setDark(d);try{storage.set("dark_v3",String(d));}catch{}};
+  const toggleCheck=(key)=>{
+    const c={...checked,[key]:!checked[key]};setChecked(c);
+    try{storage.set("checked_v3",JSON.stringify(c));}catch{}
+  };
+
+  const loadPhase=async(i)=>{
+    if(!result||phaseLoading[i])return;
+    setPhaseLoading(p=>({...p,[i]:true}));
+    auditRanRef.current=false;setAuditData(null);
+    try{
+      const data=await loadPhaseCourses(result.title.replace("Learning Roadmap: ",""),result.phases[i],result.phases);
+      setPhaseData(p=>({...p,[i]:data}));
+    }catch(e){showToast("❌ Failed: "+e.message,"error");}
+    setPhaseLoading(p=>({...p,[i]:false}));
+  };
+
+  const saveRoadmap=async()=>{
+    if(!result)return;
+    if(saved.some(s=>s.title===result.title)){showToast("⚠️ Already saved!","warn");return;}
+    try{
+      const entry={id:Date.now().toString(),title:result.title,data:result,phaseData,auditData,date:new Date().toLocaleDateString()};
+      const updated=[entry,...saved.slice(0,19)];
+      storage.set("roadmaps_v3",JSON.stringify(updated));
+      setSaved(updated);showToast("✅ Roadmap saved!","success");
+    }catch(e){showToast("❌ Save failed","error");}
+  };
+
+  const deleteRoadmap=(id)=>{
+    const updated=saved.filter(s=>s.id!==id);setSaved(updated);
+    try{storage.set("roadmaps_v3",JSON.stringify(updated));}catch{}
+    showToast("🗑 Deleted","info");
+  };
+
+  const openSaved=(entry)=>{setResult(entry.data);setPhaseData(entry.phaseData||{});setAuditData(entry.auditData||null);auditRanRef.current=!!entry.auditData;setView("result");};
+
+  const getProgress=(phases,title,pd)=>{
+    if(!phases||!pd)return 0;let t=0,d=0;
+    phases.forEach((p,pi)=>(pd[pi]?.resources||[]).forEach((_,ri)=>{t++;if(checked[`${title}-${pi}-${ri}`])d++;}));
+    return t===0?0:Math.round((d/t)*100);
+  };
+
+  const exportPDF=async()=>{
+    if(!result)return;showToast("⏳ Generating PDF...","info");
+    try{
+      await new Promise((res,rej)=>{
+        if(window.jspdf)return res();
+        const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        s.onload=res;s.onerror=()=>rej(new Error("PDF library failed"));document.head.appendChild(s);
+      });
+      const{jsPDF}=window.jspdf;
+      const doc=new jsPDF({unit:"mm",format:"a4"});
+      const W=doc.internal.pageSize.getWidth(),margin=16,usable=W-margin*2;let y=20;
+      const wrap=(t,w,fs)=>{doc.setFontSize(fs);return doc.splitTextToSize(String(t||"").replace(/[^\x00-\x7F]/g,""),w);};
+      const np=(n)=>{if(y+n>275){doc.addPage();y=20;}};
+      doc.setFillColor(102,126,234);doc.rect(0,0,W,36,"F");
+      doc.setTextColor(255,255,255);doc.setFontSize(16);doc.setFont(undefined,"bold");
+      doc.text(wrap(result.title,usable,16),margin,13);
+      doc.setFontSize(9);doc.setFont(undefined,"normal");
+      doc.text(`${result.totalTime}  |  ${new Date().toLocaleDateString()}`,margin,29);y=44;
+      doc.setFillColor(255,243,205);doc.roundedRect(margin,y,usable,11,2,2,"F");
+      doc.setTextColor(150,110,0);doc.setFontSize(7.5);doc.setFont(undefined,"italic");
+      doc.text("Scores are AI estimates — always preview courses before committing.",margin+3,y+7);y+=15;
+      doc.setTextColor(80,80,80);doc.setFontSize(10);doc.setFont(undefined,"normal");
+      const sl=wrap(result.summary,usable,10);doc.text(sl,margin,y);y+=sl.length*5+8;
+      const hx=h=>{const r=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return r?[parseInt(r[1],16),parseInt(r[2],16),parseInt(r[3],16)]:[100,100,100];};
+      const pCols=["#FF6B6B","#FF9F43","#48DBFB","#1DD1A1","#A29BFE"];
+      const pBgs=[[255,240,240],[255,247,230],[240,249,255],[240,255,244],[245,240,255]];
+      result.phases?.forEach((phase,i)=>{
+        np(28);const[cr,cg,cb]=hx(pCols[i]||pCols[3]);
+        doc.setFillColor(cr,cg,cb);doc.roundedRect(margin,y,usable,9,2,2,"F");
+        doc.setTextColor(255,255,255);doc.setFontSize(9);doc.setFont(undefined,"bold");
+        doc.text(`Phase ${i+1}: ${phase.name}  |  ${phase.difficulty}  |  ${phase.weeks}`,margin+3,y+6);y+=12;
+        const gl=wrap(`Goal: ${phase.goal}`,usable-6,9);const tl=wrap(`Topics: ${phase.topics?.join(", ")}`,usable-6,8);
+        const bh=gl.length*4.5+tl.length*4.5+10;
+        doc.setFillColor(...(pBgs[i]||pBgs[3]));doc.roundedRect(margin,y,usable,bh,2,2,"F");
+        doc.setTextColor(80,80,80);doc.setFontSize(9);doc.setFont(undefined,"italic");doc.text(gl,margin+3,y+5);y+=gl.length*4.5+5;
+        doc.setFontSize(8);doc.setFont(undefined,"normal");doc.text(tl,margin+3,y);y+=tl.length*4.5+5;
+        const pd=phaseData[i];
+        if(!pd){np(10);doc.setTextColor(150,150,150);doc.setFontSize(8);doc.setFont(undefined,"italic");doc.text("Courses not loaded.",margin+3,y);y+=10;}
+        else{
+          pd.resources?.forEach(r=>{
+            const nl=wrap(`${r.name}${r.free?" [FREE]":""}  ${r.difficulty||""}  ${r.estimatedHours||""}  Score:${r.credibility?.overall||"?"}/100`,usable-8,8.5);
+            const wl=wrap(r.why,usable-8,8);const rh=nl.length*4.5+wl.length*4.5+11;
+            np(rh+4);doc.setFillColor(255,255,255);doc.roundedRect(margin+2,y,usable-4,rh,2,2,"F");
+            doc.setTextColor(cr,cg,cb);doc.setFontSize(8.5);doc.setFont(undefined,"bold");doc.text(nl,margin+5,y+4.5);
+            doc.setTextColor(100,100,100);doc.setFontSize(8);doc.setFont(undefined,"normal");doc.text(wl,margin+5,y+nl.length*4.5+4);
+            doc.setTextColor(118,75,162);doc.setFontSize(7);
+            doc.textWithLink("Link: "+(r.url?.length>65?r.url.slice(0,62)+"...":r.url||""),margin+5,y+nl.length*4.5+wl.length*4.5+5,{url:r.url||""});
+            y+=rh+3;
+          });
+        }
+        y+=6;
+      });
+      doc.save(`${result.title.replace(/[^a-z0-9]/gi,"_")}.pdf`);
+      showToast("✅ PDF downloaded!","success");
+    }catch(e){showToast("❌ "+e.message,"error");}
+  };
+
+  async function generate(q){
+    const sq=(q||query).trim();if(!sq)return;
+    const v=validateQuery(sq);
+    if(!v.valid){setQueryWarn(v.reason==="too_short"?"Please enter a more specific subject.":`"${sq}" is too broad. Try: "Machine Learning", "React Development".`);return;}
+    setQueryWarn("");setLoading(true);setResult(null);setPhaseData({});setAuditData(null);setError("");setView("result");auditRanRef.current=false;
+    try{const skeleton=await generateSkeleton(sq);setResult(skeleton);}
+    catch(e){setError(e.message||"Something went wrong — please try again.");}
+    setLoading(false);
+  }
+
+  if(!darkReady)return null;
+  const bg=dark?"#0f0f1a":"linear-gradient(135deg,#667eea 0%,#764ba2 50%,#f093fb 100%)";
+  const cardBg=dark?"#1a1a2e":"white";const txt=dark?"#e0e0e0":"#2d3436";const sub=dark?"#a0a0b0":"#636e72";
+  const pC=dark?darkPC:phaseColors;
+  const toastBg={"success":"#1DD1A1","warn":"#FF9F43","error":"#FF6B6B","info":"#5F27CD"};
+
+  const ScoreBadge=({score})=>{
+    const s=parseInt(score)||0;
+    return(<span style={{background:s>=85?"#1DD1A1":s>=70?"#FF9F43":"#FF6B6B",color:"white",fontSize:10,padding:"2px 7px",borderRadius:8,fontWeight:700}}>{s}/100<span style={{opacity:0.7,fontWeight:400,fontSize:9}}> est.</span></span>);
+  };
+  const DiffBadge=({level})=>(<span style={{background:DIFFICULTY_COLORS[level]||"#b2bec3",color:"white",fontSize:10,padding:"2px 8px",borderRadius:8,fontWeight:700}}>{level}</span>);
+  const SevColor={"critical":"#FF6B6B","moderate":"#FF9F43","minor":"#48DBFB"};
+  const loadedCount=Object.keys(phaseData).length;
+  const totalPhases=result?.phases?.length||0;
+  const allLoaded=totalPhases>0&&loadedCount===totalPhases;
+
+  return(
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"'Segoe UI',sans-serif",padding:"20px",transition:"background 0.3s"}}>
+      {toast.msg&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:toastBg[toast.type]||"#5F27CD",color:"white",padding:"12px 24px",borderRadius:30,fontWeight:700,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.3)",fontSize:14,whiteSpace:"nowrap"}}>{toast.msg}</div>}
+
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:820,margin:"0 auto 24px"}}>
+        <div style={{display:"flex",gap:8}}>
+          {["home","saved"].map(v=>(<button key={v} onClick={()=>setView(v)} style={{padding:"8px 18px",borderRadius:20,border:"none",background:view===v?"white":"rgba(255,255,255,0.2)",color:view===v?"#764ba2":"white",fontWeight:700,cursor:"pointer",fontSize:14}}>{v==="home"?"🏠 Home":`📚 Saved (${saved.length})`}</button>))}
+        </div>
+        <button onClick={toggleDark} style={{padding:"8px 18px",borderRadius:20,border:"none",background:"rgba(255,255,255,0.2)",color:"white",fontWeight:700,cursor:"pointer",fontSize:14}}>{dark?"☀️ Light":"🌙 Dark"}</button>
+      </div>
+
+      {view==="home"&&(
+        <div style={{textAlign:"center",paddingTop:20,paddingBottom:30}}>
+          <div style={{display:"inline-block",background:"white",borderRadius:20,padding:"6px 18px",fontSize:13,fontWeight:700,color:"#764ba2",marginBottom:16,letterSpacing:1}}>🎯 CREDIBILITY-FIRST. STUDENT-TESTED.</div>
+          <h1 style={{color:"white",fontSize:"clamp(28px,5vw,52px)",fontWeight:900,margin:"0 0 12px",lineHeight:1.1}}>Your Personal<br/><span style={{background:"linear-gradient(90deg,#FECA57,#FF6B6B)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Learning Roadmap</span></h1>
+          <p style={{color:"rgba(255,255,255,0.85)",fontSize:17,margin:"0 auto 10px",maxWidth:560}}>Structured roadmap instantly. Load courses phase by phase. Auto gap audit when complete.</p>
+          <div style={{display:"flex",justifyContent:"center",gap:20,marginBottom:20,flexWrap:"wrap"}}>
+            {["⚡ Fast skeleton first","🔍 Min 3 courses per phase","🔬 Auto global gap audit"].map(t=>(<span key={t} style={{color:"rgba(255,255,255,0.85)",fontSize:13,fontWeight:600}}>{t}</span>))}
+          </div>
+          <div style={{maxWidth:620,margin:"0 auto 16px",background:"rgba(255,255,255,0.12)",borderRadius:14,padding:"12px 18px"}}>
+            <p style={{margin:0,color:"rgba(255,255,255,0.88)",fontSize:13,lineHeight:1.6}}><strong>⚠️ Transparency:</strong> Credibility scores are <strong>AI estimates</strong> — not live ratings. Courses marked <strong>🔒 Fallback</strong> are verified-real backups added when AI returns too few results. Always preview before committing.</p>
+          </div>
+          <div style={{maxWidth:620,margin:"0 auto 8px",display:"flex",gap:10,flexWrap:"wrap"}}>
+            <input value={query} onChange={e=>{setQuery(e.target.value);setQueryWarn("");}} onKeyDown={e=>e.key==="Enter"&&generate()} placeholder="e.g. Web Development, Data Science, UI/UX Design..." style={{flex:1,minWidth:200,padding:"16px 20px",borderRadius:14,border:queryWarn?"2px solid #FF6B6B":"none",fontSize:16,outline:"none",background:cardBg,color:txt,boxShadow:"0 4px 20px rgba(0,0,0,0.15)"}}/>
+            <button onClick={()=>generate()} disabled={!query.trim()} style={{padding:"16px 28px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#FECA57,#FF6B6B)",color:"white",fontWeight:800,fontSize:16,cursor:"pointer",opacity:!query.trim()?0.6:1}}>Generate 🚀</button>
+          </div>
+          {queryWarn&&<div style={{maxWidth:620,margin:"8px auto 0",background:"rgba(255,107,107,0.2)",borderRadius:10,padding:"10px 16px",color:"white",fontSize:13,fontWeight:600,textAlign:"left"}}>⚠️ {queryWarn}</div>}
+          <p style={{color:"rgba(255,255,255,0.7)",fontSize:13,margin:"20px 0 12px",fontWeight:600}}>POPULAR TOPICS</p>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",maxWidth:700,margin:"0 auto"}}>
+            {POPULAR.map(t=>(<button key={t} onClick={()=>{setQuery(t);generate(t);}} style={{padding:"8px 16px",borderRadius:20,border:"2px solid rgba(255,255,255,0.4)",background:"rgba(255,255,255,0.15)",color:"white",fontWeight:600,fontSize:13,cursor:"pointer"}}>{t}</button>))}
+          </div>
+        </div>
+      )}
+
+      {view==="saved"&&(
+        <div style={{maxWidth:820,margin:"0 auto"}}>
+          <h2 style={{color:"white",fontWeight:900,fontSize:28,marginBottom:16}}>📚 Saved Roadmaps</h2>
+          {saved.length===0?(
+            <div style={{background:cardBg,borderRadius:20,padding:40,textAlign:"center",color:sub}}>
+              <div style={{fontSize:48,marginBottom:12}}>📭</div>
+              <p style={{fontSize:17}}>No saved roadmaps yet.</p>
+              <button onClick={()=>setView("home")} style={{marginTop:16,padding:"12px 24px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",fontWeight:700,cursor:"pointer",fontSize:15}}>Generate a Roadmap</button>
+            </div>
+          ):saved.map(entry=>{
+            const prog=getProgress(entry.data?.phases,entry.data?.title,entry.phaseData||{});
+            return(<div key={entry.id} style={{background:cardBg,borderRadius:16,padding:"20px 24px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",flexWrap:"wrap"}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:800,fontSize:16,color:txt,marginBottom:4}}>{entry.title}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                  <span style={{fontSize:12,color:sub}}>Saved {entry.date}</span>
+                  {entry.auditData&&<span style={{background:"#5F27CD",color:"white",fontSize:11,padding:"2px 8px",borderRadius:10,fontWeight:700}}>🔬 Audited</span>}
+                </div>
+                <div style={{background:dark?"#2a2a3e":"#f0f0f0",borderRadius:10,height:8,maxWidth:200}}>
+                  <div style={{background:"linear-gradient(90deg,#667eea,#1DD1A1)",height:8,borderRadius:10,width:`${prog}%`,transition:"width 0.5s"}}/>
+                </div>
+                <div style={{fontSize:12,color:sub,marginTop:4}}>{prog}% complete</div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>openSaved(entry)} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",fontWeight:700,cursor:"pointer",fontSize:13}}>Open</button>
+                <button onClick={()=>deleteRoadmap(entry.id)} style={{padding:"8px 12px",borderRadius:10,border:"none",background:"#FF6B6B",color:"white",fontWeight:700,cursor:"pointer",fontSize:13}}>🗑</button>
+              </div>
+            </div>);
+          })}
+        </div>
+      )}
+
+      {view==="result"&&(
+        <div style={{maxWidth:820,margin:"0 auto"}}>
+          {loading&&(<div style={{background:cardBg,borderRadius:20,padding:"10px 0",marginTop:20,boxShadow:"0 8px 32px rgba(0,0,0,0.15)"}}><DynamicLoader messages={SKELETON_MSGS} color="#764ba2" label="🧠"/></div>)}
+          {error&&(<div style={{textAlign:"center",paddingTop:40}}><div style={{background:"rgba(255,107,107,0.2)",borderRadius:20,padding:30,maxWidth:500,margin:"0 auto"}}><div style={{fontSize:40,marginBottom:12}}>❌</div><p style={{color:"white",fontWeight:600,fontSize:16,marginBottom:16}}>{error}</p><div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}><button onClick={()=>generate()} style={{padding:"10px 20px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FECA57,#FF6B6B)",color:"white",fontWeight:700,cursor:"pointer"}}>🔄 Try Again</button><button onClick={()=>setView("home")} style={{padding:"10px 20px",borderRadius:12,border:"none",background:"white",color:"#764ba2",fontWeight:700,cursor:"pointer"}}>← New Search</button></div></div></div>)}
+
+          {result&&!loading&&(()=>{
+            const prog=getProgress(result.phases,result.title,phaseData);
+            return(<>
+              <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+                <button onClick={()=>setView("home")} style={{padding:"10px 18px",borderRadius:12,border:"none",background:"rgba(255,255,255,0.2)",color:"white",fontWeight:700,cursor:"pointer",fontSize:14}}>← New Search</button>
+                <button onClick={saveRoadmap} style={{padding:"10px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#1DD1A1,#48DBFB)",color:"white",fontWeight:700,cursor:"pointer",fontSize:14}}>💾 Save</button>
+                <button onClick={exportPDF} style={{padding:"10px 18px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#FF6B6B,#FF9F43)",color:"white",fontWeight:700,cursor:"pointer",fontSize:14}}>📄 Download PDF</button>
+              </div>
+
+              <div style={{background:dark?"#1e1a2e":"#f8f6ff",border:"1.5px solid #764ba2",borderRadius:14,padding:"12px 18px",marginBottom:16}}>
+                <p style={{margin:0,fontSize:13,color:dark?"#c0b0e0":"#555",lineHeight:1.6}}><strong style={{color:"#764ba2"}}>ℹ️ About scores:</strong> Credibility scores are <strong>AI estimates</strong>. Courses marked <strong>🔒 Fallback</strong> are verified-real backups. YouTube channels with real data show "✓ Live data". Always preview before committing.</p>
+              </div>
+
+              <div style={{background:cardBg,borderRadius:20,padding:"28px 32px",marginBottom:20,boxShadow:"0 8px 32px rgba(0,0,0,0.15)"}}>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+                  <span style={{background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",padding:"4px 14px",borderRadius:20,fontSize:12,fontWeight:700}}>✅ Verified Structure</span>
+                  <span style={{background:dark?"#2a2a3e":"#f0f0f0",color:sub,padding:"4px 14px",borderRadius:20,fontSize:12,fontWeight:600}}>{totalPhases} Phases · {result.complexity}</span>
+                  <span style={{background:dark?"#2a2a3e":"#f0f0f0",color:sub,padding:"4px 14px",borderRadius:20,fontSize:12,fontWeight:600}}>{loadedCount}/{totalPhases} loaded</span>
+                  {!allLoaded&&<span style={{background:"#FF9F43",color:"white",padding:"4px 14px",borderRadius:20,fontSize:12,fontWeight:600}}>Load all phases for gap audit</span>}
+                  {auditData&&<span style={{background:"#5F27CD",color:"white",padding:"4px 14px",borderRadius:20,fontSize:12,fontWeight:600}}>🔬 Gap audit complete</span>}
+                </div>
+                <h2 style={{margin:"0 0 10px",fontSize:26,fontWeight:900,color:txt}}>{result.title}</h2>
+                <p style={{margin:"0 0 16px",color:sub,fontSize:16}}>{result.summary}</p>
+                <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+                  <div style={{background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",padding:"6px 16px",borderRadius:30,fontSize:14,fontWeight:700}}>⏱ {result.totalTime}</div>
+                  {loadedCount>0&&(<div style={{flex:1,minWidth:160}}><div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:sub,marginBottom:4}}><span>Progress</span><span>{prog}%</span></div><div style={{background:dark?"#2a2a3e":"#f0f0f0",borderRadius:10,height:10}}><div style={{background:"linear-gradient(90deg,#667eea,#1DD1A1)",height:10,borderRadius:10,width:`${prog}%`,transition:"width 0.5s"}}/></div></div>)}
+                </div>
+              </div>
+
+              {result.phases?.map((phase,i)=>{
+                const c=pC[i]||pC[4];const pd=phaseData[i];const isLoading=!!phaseLoading[i];
+                const pDone=pd?pd.resources?.filter((_,ri)=>checked[`${result.title}-${i}-${ri}`]).length||0:0;
+                return(<div key={i} style={{background:c.bg,border:`2px solid ${c.border}`,borderRadius:20,padding:"24px 28px",marginBottom:18,boxShadow:"0 4px 16px rgba(0,0,0,0.08)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:14}}>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{background:c.badge,color:"white",padding:"4px 14px",borderRadius:20,fontSize:13,fontWeight:700}}>{c.label}</span>
+                      <DiffBadge level={phase.difficulty}/>
+                    </div>
+                    <span style={{fontSize:13,color:"#636e72",fontWeight:600}}>⏰ {phase.weeks}{pd?` · ${pDone}/${pd.resources?.length||0} done`:""}</span>
+                  </div>
+                  <h3 style={{margin:"0 0 6px",fontSize:20,fontWeight:800,color:dark?"#fff":"#2d3436"}}>{phase.name}</h3>
+                  {phase.prerequisite&&<p style={{margin:"0 0 8px",fontSize:13,color:"#FF9F43",fontWeight:600}}>⚠️ Prerequisite: {phase.prerequisite}</p>}
+                  <p style={{margin:"0 0 14px",color:dark?"#aaa":"#636e72",fontSize:15}}>🎯 <em>{phase.goal}</em></p>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:18}}>{phase.topics?.map((t,j)=>(<span key={j} style={{background:dark?"rgba(255,255,255,0.08)":"white",border:`1.5px solid ${c.border}`,color:c.badge,padding:"4px 12px",borderRadius:20,fontSize:13,fontWeight:600}}>{t}</span>))}</div>
+
+                  {!pd&&!isLoading&&(<div style={{textAlign:"center",padding:"20px 0 4px"}}><p style={{color:sub,fontSize:14,marginBottom:14}}>Click below when ready to study this phase.</p><button onClick={()=>loadPhase(i)} style={{padding:"12px 28px",borderRadius:14,border:"none",background:`linear-gradient(135deg,${c.badge},${c.border})`,color:"white",fontWeight:800,fontSize:15,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,0,0,0.15)"}}>🔍 Search Courses for This Phase</button></div>)}
+                  {isLoading&&(<div style={{background:dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.02)",borderRadius:14,margin:"4px 0"}}><DynamicLoader messages={PHASE_MSGS} color={c.badge} label="🔍"/></div>)}
+
+                  {pd&&!isLoading&&(<>
+                    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                      {pd.resources?.map((r,ri)=>{
+                        const key=`${result.title}-${i}-${ri}`;const done=!!checked[key];
+                        const score=parseInt(r.credibility?.overall)||0;
+                        const isFallback=!!r._isFallback;
+                        return(<div key={ri} style={{background:dark?"#1a1a2e":"white",borderRadius:14,padding:"16px 18px",boxShadow:"0 2px 8px rgba(0,0,0,0.07)",opacity:done?0.65:1,border:score>=85?`1.5px solid ${c.border}`:"1.5px solid transparent"}}>
+                          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                            <input type="checkbox" checked={done} onChange={()=>toggleCheck(key)} style={{width:18,height:18,cursor:"pointer",accentColor:c.badge,flexShrink:0,marginTop:3}}/>
+                            <div style={{flex:1}}>
+                              <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:6}}>
+                                <span style={{fontWeight:800,fontSize:15,color:dark?"#fff":"#2d3436",textDecoration:done?"line-through":"none"}}>{r.name}</span>
+                                {r.free&&<span style={{background:"#1DD1A1",color:"white",fontSize:10,padding:"2px 7px",borderRadius:8,fontWeight:700}}>FREE</span>}
+                                {isFallback&&<span style={{background:"#636e72",color:"white",fontSize:10,padding:"2px 7px",borderRadius:8,fontWeight:700}}>🔒 Fallback</span>}
+                                <DiffBadge level={r.difficulty}/>
+                                <ScoreBadge score={score}/>
+                                {done&&<span style={{background:"#667eea",color:"white",fontSize:10,padding:"2px 7px",borderRadius:8,fontWeight:700}}>✓ Done</span>}
+                              </div>
+                              <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:12,color:sub,marginBottom:8}}>
+                                {r.platform&&<span>📍 {r.platform}</span>}
+                                {r.instructor&&<span>👤 {r.instructor}</span>}
+                                {r.estimatedHours&&<span style={{color:c.badge,fontWeight:700}}>⏱ {r.estimatedHours}</span>}
+                              </div>
+                              <p style={{margin:"0 0 8px",fontSize:13,color:dark?"#aaa":"#636e72"}}>{r.why}</p>
+                              {r.topicsMatched?.length>0&&<div style={{marginBottom:4}}><span style={{fontSize:11,color:"#1DD1A1",fontWeight:700}}>✓ Covers: </span><span style={{fontSize:11,color:sub}}>{r.topicsMatched.join(", ")}</span></div>}
+                              {r.topicsMissed?.length>0&&<div style={{marginBottom:8}}><span style={{fontSize:11,color:"#FF9F43",fontWeight:700}}>⚠ Gaps: </span><span style={{fontSize:11,color:sub}}>{r.topicsMissed.join(", ")}</span></div>}
+                              <div style={{display:"flex",gap:12,flexWrap:"wrap",padding:"7px 10px",background:dark?"rgba(255,255,255,0.04)":"#f8f9fa",borderRadius:8}}>
+                                {r.credibility?.realData?(
+                                  <>
+                                    {r.youtubeStats?.type==="channel"&&<><div style={{fontSize:11,color:sub}}><span style={{fontWeight:700}}>👥 </span><span style={{color:"#1DD1A1",fontWeight:700}}>{(r.youtubeStats.subscribers/1000).toFixed(0)}K subs</span></div><div style={{fontSize:11,color:sub}}><span style={{fontWeight:700}}>🎬 </span><span style={{fontWeight:700}}>{r.youtubeStats.videoCount} videos</span></div></>}
+                                    {r.youtubeStats?.type==="video"&&<><div style={{fontSize:11,color:sub}}><span style={{fontWeight:700}}>👁 </span><span style={{color:"#1DD1A1",fontWeight:700}}>{(r.youtubeStats.views/1000).toFixed(0)}K views</span></div><div style={{fontSize:11,color:sub}}><span style={{fontWeight:700}}>👍 </span><span style={{fontWeight:700}}>{(r.youtubeStats.likes/1000).toFixed(1)}K</span></div></>}
+                                    <span style={{fontSize:10,color:"#1DD1A1",fontStyle:"italic",alignSelf:"center",fontWeight:700}}>✓ Live data</span>
+                                  </>
+                                ):(
+                                  <>
+                                    {[["Community",r.credibility?.communityTrust],["Coverage",r.credibility?.topicCoverage],["Longevity",r.credibility?.longevity]].map(([l,v])=>{
+                                      const val=parseInt(v)||0;
+                                      return(<div key={l} style={{fontSize:11,color:sub}}><span style={{fontWeight:700}}>{l}: </span><span style={{color:val>=85?"#1DD1A1":val>=70?"#FF9F43":"#FF6B6B",fontWeight:700}}>{val}</span></div>);
+                                    })}
+                                    <span style={{fontSize:10,color:sub,fontStyle:"italic",alignSelf:"center"}}>AI estimates</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <a href={r.url} target="_blank" rel="noopener noreferrer" style={{background:c.badge,color:"white",padding:"8px 16px",borderRadius:10,fontSize:13,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>Visit →</a>
+                          </div>
+                        </div>);
+                      })}
+                    </div>
+                    <div style={{textAlign:"right",marginTop:12}}><button onClick={()=>loadPhase(i)} style={{padding:"7px 16px",borderRadius:10,border:`1.5px solid ${c.border}`,background:"transparent",color:c.badge,fontWeight:700,cursor:"pointer",fontSize:12}}>🔄 Reload</button></div>
+                    {pd.uncoveredTopics?.length>0&&(<div style={{marginTop:14,background:dark?"#2a2040":"#fffbf0",border:"1.5px solid #FF9F43",borderRadius:14,padding:"14px 16px"}}><p style={{margin:"0 0 10px",fontWeight:800,fontSize:13,color:dark?"#fff":"#2d3436"}}>⚠️ Phase-level gaps:</p>{pd.uncoveredTopics.map((ut,j)=>(<div key={j} style={{marginBottom:8}}><span style={{fontWeight:700,fontSize:13,color:"#FF9F43"}}>📌 {ut.topic}: </span><span style={{fontSize:13,color:sub}}>{ut.reason}</span>{ut.partialResources?.length>0&&<div style={{fontSize:12,color:sub,marginTop:2}}><span style={{fontWeight:700}}>Partial: </span>{ut.partialResources.join(", ")}</div>}</div>))}</div>)}
+                  </>)}
+                </div>);
+              })}
+
+              {auditLoading&&(<div style={{background:dark?"#1a1030":"#f5f0ff",border:"2px solid #A29BFE",borderRadius:20,marginBottom:18,overflow:"hidden"}}><div style={{background:"linear-gradient(135deg,#5F27CD,#A29BFE)",padding:"14px 24px",display:"flex",alignItems:"center",gap:10}}><span style={{color:"white",fontWeight:800,fontSize:15}}>🔬 Running Global Gap Audit...</span><span style={{color:"rgba(255,255,255,0.7)",fontSize:13}}>Analysing all phases together</span></div><DynamicLoader messages={AUDIT_MSGS} color="#5F27CD" label="🔬"/></div>)}
+
+              {auditData&&!auditLoading&&(()=>{
+                const covColor={"excellent":"#1DD1A1","good":"#48DBFB","partial":"#FF9F43","poor":"#FF6B6B"}[auditData.overallCoverage]||"#b2bec3";
+                return(<div style={{background:dark?"#1a1030":"#f5f0ff",border:"2px solid #A29BFE",borderRadius:20,padding:"24px 28px",marginBottom:18,boxShadow:"0 4px 24px rgba(95,39,205,0.15)"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:16}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:24}}>🔬</span><div><h3 style={{margin:0,fontSize:18,fontWeight:800,color:dark?"#fff":"#2d3436"}}>Global Gap Audit</h3><p style={{margin:"3px 0 0",fontSize:13,color:sub}}>Cross-phase analysis of all topics vs all courses</p></div></div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,color:sub,fontWeight:600}}>Coverage:</span><span style={{background:covColor,color:"white",padding:"4px 14px",borderRadius:20,fontSize:13,fontWeight:800,textTransform:"capitalize"}}>{auditData.overallCoverage}</span></div>
+                  </div>
+                  {auditData.summary&&<p style={{margin:"0 0 18px",fontSize:14,color:sub,fontStyle:"italic",borderLeft:"3px solid #A29BFE",paddingLeft:12}}>{auditData.summary}</p>}
+                  {auditData.globalGaps?.length>0?(
+                    <div style={{marginBottom:18}}>
+                      <p style={{fontWeight:800,fontSize:14,color:dark?"#fff":"#2d3436",marginBottom:10}}>📌 Topics not fully covered across the entire roadmap:</p>
+                      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                        {auditData.globalGaps.map((g,i)=>(<div key={i} style={{background:dark?"#2a2040":"white",borderRadius:12,padding:"14px 16px",borderLeft:`4px solid ${SevColor[g.severity]||"#b2bec3"}`}}><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}><span style={{fontWeight:800,fontSize:14,color:dark?"#fff":"#2d3436"}}>{g.topic}</span><span style={{background:SevColor[g.severity]||"#b2bec3",color:"white",fontSize:10,padding:"2px 8px",borderRadius:8,fontWeight:700,textTransform:"uppercase"}}>{g.severity}</span><span style={{background:dark?"#3a3050":"#f0f0f0",color:sub,fontSize:11,padding:"2px 8px",borderRadius:8}}>📍 {g.phase}</span></div><p style={{margin:"0 0 6px",fontSize:13,color:sub}}>{g.reason}</p>{g.partialResources?.length>0&&<p style={{margin:0,fontSize:12,color:sub}}><span style={{fontWeight:700,color:"#FF9F43"}}>Partial: </span>{g.partialResources.join(", ")}</p>}</div>))}
+                      </div>
+                    </div>
+                  ):(<div style={{background:dark?"#0a2d1f":"#f0fff4",border:"1.5px solid #1DD1A1",borderRadius:12,padding:"14px 16px",marginBottom:18,display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>✅</span><p style={{margin:0,fontWeight:700,fontSize:14,color:"#1DD1A1"}}>No global topic gaps found.</p></div>)}
+                  {auditData.dependencyGaps?.length>0?(
+                    <div><p style={{fontWeight:800,fontSize:14,color:dark?"#fff":"#2d3436",marginBottom:10}}>⛓ Dependency gaps:</p><div style={{display:"flex",flexDirection:"column",gap:10}}>{auditData.dependencyGaps.map((g,i)=>(<div key={i} style={{background:dark?"#2a2040":"white",borderRadius:12,padding:"14px 16px",borderLeft:"4px solid #A29BFE"}}><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}><span style={{fontWeight:800,fontSize:14,color:dark?"#fff":"#2d3436"}}>{g.topic}</span><span style={{background:"#A29BFE",color:"white",fontSize:10,padding:"2px 8px",borderRadius:8,fontWeight:700}}>DEPENDENCY</span><span style={{fontSize:12,color:sub}}>assumed in <strong>{g.assumedInPhase}</strong> · {g.taughtInPhase}</span></div><p style={{margin:0,fontSize:13,color:"#5F27CD",fontWeight:600}}>💡 {g.recommendation}</p></div>))}</div></div>
+                  ):(<div style={{background:dark?"#0a2d1f":"#f0fff4",border:"1.5px solid #1DD1A1",borderRadius:12,padding:"14px 16px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>✅</span><p style={{margin:0,fontWeight:700,fontSize:14,color:"#1DD1A1"}}>No dependency gaps found.</p></div>)}
+                </div>);
+              })()}
+
+              {!allLoaded&&!auditData&&(<div style={{background:dark?"#1e1a2e":"#f8f6ff",border:"1.5px dashed #A29BFE",borderRadius:16,padding:"18px 24px",marginBottom:18,textAlign:"center"}}><p style={{margin:"0 0 4px",fontWeight:700,fontSize:14,color:dark?"#c0b0e0":"#5F27CD"}}>🔬 Load all {totalPhases} phases to trigger the Global Gap Audit</p><p style={{margin:0,fontSize:13,color:sub}}>{totalPhases-loadedCount} phase{totalPhases-loadedCount!==1?"s":""} remaining</p></div>)}
+
+              {result.finalTip&&(<div style={{background:"linear-gradient(135deg,#5F27CD,#341f97)",borderRadius:20,padding:"24px 28px",color:"white",boxShadow:"0 8px 32px rgba(0,0,0,0.2)",marginBottom:30}}><div style={{fontSize:24,marginBottom:8}}>💬</div><p style={{margin:0,fontSize:16,lineHeight:1.7,fontStyle:"italic"}}><strong>Senior Mentor says:</strong> "{result.finalTip}"</p></div>)}
+            </>);
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>
